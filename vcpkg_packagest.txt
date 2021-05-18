@@ -1,0 +1,172 @@
+cxxopts
+rapidjson
+
+--triplet x64-windows
+
+class book
+{
+    tick top_{};
+
+    std::map<uint64_t, uint64_t, std::greater<uint64_t>> bids_;
+    std::map<uint64_t, uint64_t> asks_;
+public:
+    void bid(uint64_t price, uint64_t quantity)
+    {
+        if (quantity)
+            bids_[price] = quantity;
+        else
+            bids_.erase(price);
+    }
+
+    void ask(uint64_t price, uint64_t quantity)
+    {
+        if (quantity)
+            asks_[price] = quantity;
+        else
+            asks_.erase(price);
+    }
+
+    void update()
+    {
+        auto bid = bids_.begin();
+        if (bid == std::end(bids_))
+            return;
+
+        auto ask = asks_.begin();
+        if (ask == std::end(asks_))
+            return;
+
+        tick t{ bid->first, bid->second, ask->first, ask->second };
+        if (t != top_)
+        {
+            top_ = t;
+            print_top();
+        }
+    }
+
+    void print_top()
+    {
+        auto bid = bids_.begin();
+        if (bid == std::end(bids_))
+            return;
+
+        auto ask = asks_.begin();
+        if (ask == std::end(asks_))
+            return;        
+
+        spdlog::info("{} - {}", bid->first, ask->first);
+    }
+};
+
+/*api.get_depth(symbol->get_name(), [&](std::string_view& value)
+            {
+                rapidjson::Document json_result{};
+                json_result.Parse(value.data());
+
+                auto lastUpdateId = json_result["lastUpdateId"].GetInt64();
+
+                auto& bids = json_result["bids"];
+                if (bids.IsArray())
+                {
+                    for (auto& bid : bids.GetArray())
+                    {
+                        auto s = bid[0].GetString();
+
+                        uint64_t price = uint64_t(std::stod(s) * prec);
+                        auto quantity = std::stoul(bid[1].GetString());
+
+                        book_.bid(price, quantity);
+                    }
+                }
+
+                auto& asks = json_result["asks"];
+                if (asks.IsArray())
+                {
+                    for (auto& ask : asks.GetArray())
+                    {
+                        auto s = ask[0].GetString();
+                        uint64_t price = uint64_t(std::stod(s) * prec);
+                        auto quantity = std::stoul(ask[1].GetString());
+
+                        book_.ask(price, quantity);
+                    }
+                }
+
+                book_.update();
+            });
+
+        api.connect_endpoint("/ws/dogeusdt@depth@100ms", [&](std::string_view& value)
+            {
+                rapidjson::Document json_result{};
+                json_result.Parse(value.data());
+
+                auto u = json_result["u"].GetInt64();
+                auto U = json_result["U"].GetInt64();
+
+                auto& bids = json_result["b"];
+                if (bids.IsArray())
+                {
+                    for (auto& bid : bids.GetArray())
+                    {
+                        auto s = bid[0].GetString();
+
+                        uint64_t price = uint64_t(std::stod(s) * prec);
+                        auto quantity = std::stoul(bid[1].GetString());
+
+                        book_.bid(price, quantity);
+                    }
+                }
+
+                auto& asks = json_result["a"];
+                if (asks.IsArray())
+                {
+                    for (auto& ask : asks.GetArray())
+                    {
+                        auto s = ask[0].GetString();
+                        uint64_t price = uint64_t(std::stod(s) * prec);
+                        auto quantity = std::stoul(ask[1].GetString());
+
+                        book_.ask(price, quantity);
+                    }
+                }
+
+                book_.update();
+            });*/
+
+
+ /*auto wVersionRequested = MAKEWORD(2, 2);
+    WSADATA wsaData;
+    auto err = WSAStartup(wVersionRequested, &wsaData);
+    if (err != 0)
+    {
+        spdlog::error("WSAStartup failed: {}", err);
+        return 1;
+    }
+
+    if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2)
+    {
+        spdlog::error("Could not find a usable version of Winsock.dll");
+        WSACleanup();
+        return 1;
+    }
+    else
+        spdlog::info("The Winsock 2.2 dll was found okay");
+
+    auto fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0)
+    {
+        spdlog::error("unable to create socket");
+        return 1;
+    }    
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = inet_addr(group);    
+    addr.sin_port = htons(port);*/
+
+    /*int nbytes = sendto(fd, (char*)&tick, sizeof(tick_message), 0, (struct sockaddr*)&addr, sizeof(addr));
+                if (nbytes < 0)
+                {
+                    spdlog::error("unable to send tick");
+                }*/
