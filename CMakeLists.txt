@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(mosquitto REQUIRED)
+find_package(Mosquitto  REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
 find_package(cxxopts CONFIG REQUIRED)
@@ -23,11 +23,3 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${MOSQUITTO_LIBRARIES})
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${MOSQUITTO_INCLUDE_DIRS})
 target_include_directories(${PROJECT_NAME} PRIVATE ${RAPIDJSON_INCLUDE_DIRS})
-
-install(TARGETS ${PROJECT_NAME}
-        CONFIGURATIONS Release
-        RUNTIME DESTINATION bin)
-		
-install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-  DESTINATION bin
-  FILES_MATCHING PATTERN "*.dll")

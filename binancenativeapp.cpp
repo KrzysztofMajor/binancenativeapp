@@ -104,14 +104,17 @@ int main(int argc, char** argv)
         ("d,debug", "Enable debugging", cxxopts::value<bool>()->default_value("false"))
         ("h,host", "Multicast group", cxxopts::value<std::string>()->default_value("192.168.1.45"))
         ("p,port", "Multicast port", cxxopts::value<int>()->default_value("1883"))
-        ("k,keepalive", "Enable debugging", cxxopts::value<int>()->default_value("60"));
+        ("k,keepalive", "Enable debugging", cxxopts::value<int>()->default_value("60"))
+        ("c,cert", "cert file", cxxopts::value<std::string>()->default_value("c:/project/client/binancenativeapp/cacert.pem"));
 
     auto result = options.parse(argc, argv);
 
     bool debug = result["debug"].as<bool>();
     int port = result["port"].as<int>();
     const char* host = result["host"].as<std::string>().c_str();
+    const char* cert = result["cert"].as<std::string>().c_str();
     int keepalive = result["keepalive"].as<int>();
+
 
     mosquitto_lib_init();
     auto mosq = mosquitto_new(NULL, true, NULL);
@@ -127,7 +130,7 @@ int main(int argc, char** argv)
     mosquitto_message_callback_set(mosq, my_message_callback);
     mosquitto_subscribe_callback_set(mosq, my_subscribe_callback);
 
-    binance::api api{};
+    binance::api api{ cert };
     api.get_exchange_info();
 
     ticker ticker_(mosq, api);

@@ -116,7 +116,7 @@ namespace binance
 	public:
 		using callback = std::function<void(std::string_view&)>;
 
-		api();
+		api(const char* cert);
 		~api();
 
 		void get_exchange_info();		

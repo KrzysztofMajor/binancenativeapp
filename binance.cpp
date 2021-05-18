@@ -7,7 +7,7 @@ using namespace binance;
 #define BINANCE_WS_PORT 9443
 #define BINANCE_WS_PROTOCOL_NAME "example-protocol"
 
-api::api()
+api::api(const char* cert)
 {	
 	lws_context_creation_info info;
 	memset(&info, 0, sizeof(info));
@@ -24,7 +24,7 @@ api::api()
 	info.gid = -1;
 	info.uid = -1;
 	info.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
-	info.client_ssl_ca_filepath = "C:/project/Crypto/binacpp/example/cacert.pem";
+	info.client_ssl_ca_filepath = cert;// "cacert.pem";
 
 	context_  = lws_create_context(&info);
 }
