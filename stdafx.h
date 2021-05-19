@@ -11,7 +11,7 @@
 
 #include <curl/curl.h>
 #include <libwebsockets.h>
-#include <mosquitto.h>
+#include <paho-mqtt/MQTTClient.h>
 
 #include <rapidjson/rapidjson.h>
 #include <rapidjson/document.h>

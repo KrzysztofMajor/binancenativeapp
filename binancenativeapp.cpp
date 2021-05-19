@@ -1,39 +1,10 @@
 #include "stdafx.h"
 #include "binance.h"
 
-void my_log_callback(mosquitto* mosq, void* userdata, int level, const char* str)
-{    
-    spdlog::trace("{}", str);
-}
-
-void my_message_callback(mosquitto* mosq, void* userdata, const mosquitto_message* message)
-{
-    if (message->payloadlen) 
-    {
-        spdlog::info("{} {}", message->topic, message->payload);
-    }
-    else {
-        spdlog::info("{} (null)", message->topic);
-    }    
-}
-
-void my_subscribe_callback(struct mosquitto* mosq, void* userdata, int mid, int qos_count, const int* granted_qos)
-{
-    spdlog::info("Subscribed (mid: {}): {}", mid, qos_count);    
-}
-
-void my_connect_callback(struct mosquitto* mosq, void* userdata, int result)
-{    
-    if (!result)             
-        mosquitto_subscribe(mosq, NULL, "test/#", 2);    
-    else
-        spdlog::error("Connect failed");    
-}
-
 class ticker
 {
 public:
-    ticker(mosquitto* mosq, binance::api& api)
+    ticker(MQTTClient& mosq, binance::api& api)
         : mosq_(mosq), api_(api)
     {
 
@@ -86,12 +57,18 @@ public:
                     mqtt_result.Accept(writer);
 
                     const char* str = buffer.GetString();
-                    mosquitto_publish(mosq_, nullptr, topic.c_str(), strlen(str), str, 0, false);
+                    //mosquitto_publish(mosq_, nullptr, topic.c_str(), strlen(str), str, 0, false);
+                    /*MQTTClient_message pubmsg = MQTTClient_message_initializer;
+                    pubmsg.payload = (void*)str;
+                    pubmsg.payloadlen = strlen(str);
+                    pubmsg.qos = 0;
+                    pubmsg.retained = 0;*/
+                    MQTTClient_publish(mosq_, topic.c_str(), strlen(str), str, 0, 0, nullptr);
                 });
         }
     }
 private:
-    mosquitto* mosq_{};
+    MQTTClient& mosq_;
     binance::api& api_;
 };
 
@@ -102,48 +79,46 @@ int main(int argc, char** argv)
     cxxopts::Options options("binancenativeapp", "binancenativeapp");
     options.add_options()
         ("d,debug", "Enable debugging", cxxopts::value<bool>()->default_value("false"))
-        ("h,host", "Multicast group", cxxopts::value<std::string>()->default_value("192.168.1.45"))
+        ("h,host", "Multicast group", cxxopts::value<std::string>()->default_value("tcp://192.168.1.45:1883"))
         ("p,port", "Multicast port", cxxopts::value<int>()->default_value("1883"))
         ("k,keepalive", "Enable debugging", cxxopts::value<int>()->default_value("60"))
         ("c,cert", "cert file", cxxopts::value<std::string>()->default_value("c:/project/client/binancenativeapp/cacert.pem"));
 
     auto result = options.parse(argc, argv);
 
-    bool debug = result["debug"].as<bool>();
-    int port = result["port"].as<int>();
+    bool debug = result["debug"].as<bool>();    
     const char* host = result["host"].as<std::string>().c_str();
     const char* cert = result["cert"].as<std::string>().c_str();
     int keepalive = result["keepalive"].as<int>();
 
 
-    mosquitto_lib_init();
-    auto mosq = mosquitto_new(NULL, true, NULL);
+    MQTTClient client;
+    MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
+    
+    MQTTClient_create(&client, host, "binancenativeapp", MQTTCLIENT_PERSISTENCE_NONE, NULL);
+    conn_opts.keepAliveInterval = 20;
+    conn_opts.cleansession = 1;
 
-    if (mosquitto_connect(mosq, host, port, keepalive)) 
-    {        
-        spdlog::error("Unable to connect: {}:{}", host, port);
-        return 1;
-    }       
-
-    mosquitto_log_callback_set(mosq, my_log_callback);
-    mosquitto_connect_callback_set(mosq, my_connect_callback);
-    mosquitto_message_callback_set(mosq, my_message_callback);
-    mosquitto_subscribe_callback_set(mosq, my_subscribe_callback);
+    int rc;    
+    if ((rc = MQTTClient_connect(client, &conn_opts)) != MQTTCLIENT_SUCCESS)
+    {
+        spdlog::error("Failed to connect, return code {}", rc);
+        return EXIT_FAILURE;
+    }
 
     binance::api api{ cert };
     api.get_exchange_info();
 
-    ticker ticker_(mosq, api);
+    ticker ticker_(client, api);
     ticker_.subscribe("DOGEUSDT");
     ticker_.subscribe("BTCUSDT");
     ticker_.subscribe("ETHUSDT");
     
     while (1)
     {
-        api.event_loop();
-        mosquitto_loop(mosq, 0, 1);
+        api.event_loop();        
     }
 
-    mosquitto_destroy(mosq);
-    mosquitto_lib_cleanup();    
+    MQTTClient_disconnect(client, 10000);
+    MQTTClient_destroy(&client);
 }
