@@ -1,6 +1,8 @@
 project(binancenativeapp)
 cmake_minimum_required(VERSION 3.16)
 
+message("Hello from latest cmake")
+
 set(CMAKE_CXX_STANDARD 17)
 
 find_package(eclipse-paho-mqtt-c CONFIG REQUIRED)
@@ -23,7 +25,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${MOSQUITTO_LIBRARIES})
 if(WIN32)
 target_link_libraries(${PROJECT_NAME} PRIVATE eclipse-paho-mqtt-c::paho-mqtt3a eclipse-paho-mqtt-c::paho-mqtt3c )
 else()
-target_link_libraries(${PROJECT_NAME} PRIVATE eclipse-paho-mqtt-c::paho-mqtt3a-static eclipse-paho-mqtt-c::paho-mqtt3c-static)
+target_link_libraries(${PROJECT_NAME} PRIVATE eclipse-paho-mqtt-c::paho-mqtt3as-static eclipse-paho-mqtt-c::paho-mqtt3cs-static)
 endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${MOSQUITTO_INCLUDE_DIRS})
