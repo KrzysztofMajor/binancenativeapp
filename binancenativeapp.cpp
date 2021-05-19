@@ -56,13 +56,7 @@ public:
                     rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
                     mqtt_result.Accept(writer);
 
-                    const char* str = buffer.GetString();
-                    //mosquitto_publish(mosq_, nullptr, topic.c_str(), strlen(str), str, 0, false);
-                    /*MQTTClient_message pubmsg = MQTTClient_message_initializer;
-                    pubmsg.payload = (void*)str;
-                    pubmsg.payloadlen = strlen(str);
-                    pubmsg.qos = 0;
-                    pubmsg.retained = 0;*/
+                    const char* str = buffer.GetString();                    
                     MQTTClient_publish(mosq_, topic.c_str(), strlen(str), str, 0, 0, nullptr);
                 });
         }
