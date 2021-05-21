@@ -90,9 +90,9 @@ int wait_if_needed(CURLM* multi_handle, timeval& timeout)
     /* On success the value of maxfd is guaranteed to be >= -1. We call
            sleep for 100ms, which is the minimum suggested value in the
            curl_multi_fdset() doc. */
-    if (maxfd == -1) {
+    /*if (maxfd == -1) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
+    }*/
 
     int rc = maxfd != -1 ? select(maxfd + 1, &fdread, &fdwrite, &fdexcep, &timeout) : 0;
     return rc;
