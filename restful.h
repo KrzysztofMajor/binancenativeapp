@@ -9,6 +9,7 @@ namespace binance
 		~restful();
 
 		bool get(const std::string& url, std::string& result);
+		void get_file(const std::string& url);
 	private:
 		bool api(const std::string& url, std::string& result);
 
