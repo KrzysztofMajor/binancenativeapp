@@ -10,16 +10,6 @@ public:
     ~CurlGlobalStateGuard() { curl_global_cleanup(); }
 };
 
-void connectionLost(void* context, char* cause)
-{
-    spdlog::error(cause);
-}
-
-int mqtt_arrived_cb(void* context, char* topicName, int topicLen, MQTTClient_message* message)
-{
-    return 1;
-}
-
 class kline
 {
 public:
@@ -194,14 +184,7 @@ int main(int argc, char** argv)
     {
         spdlog::error("Failed to connect, return code {}", rc);
         return EXIT_FAILURE;
-    }
-
-    rc = MQTTClient_setCallbacks(client, nullptr,  connectionLost, mqtt_arrived_cb, nullptr);
-    if (rc != MQTTCLIENT_SUCCESS)
-    {
-        spdlog::error("Failed to set callback, return code {}", rc);
-        return EXIT_FAILURE;
-    }
+    }    
 
     binance::api api{ cert };
     //api.get_exchange_info();
@@ -225,7 +208,8 @@ int main(int argc, char** argv)
             start = current;
         }
 
-        api.event_loop();        
+        api.event_loop();       
+        MQTTClient_yield();
     }
 
     MQTTClient_disconnect(client, 10000);
