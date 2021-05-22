@@ -11,5 +11,5 @@ WORKDIR /root
 COPY --from=0 /opt/binancenativeapp/cacert.pem .
 COPY --from=0 /opt/binancenativeapp/build/binancenativeapp .
 
-ENTRYPOINT ["./binancenativeapp"]
-CMD ["--cert=cacert.pem"]
+ENTRYPOINT ["./binancenativeapp", "--cert=cacert.pem"]
+CMD ["--symbols=BTCUSDT;ETHUSDT;DOGEUSDT"]

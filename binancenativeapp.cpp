@@ -112,6 +112,12 @@ public:
                 mqtt_result.SetObject();
 
                 auto& allocator = mqtt_result.GetAllocator();                    
+
+
+                auto millisec_since_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+
+                mqtt_result.AddMember("update_id", json_result["u"].GetUint64(), allocator);
+                mqtt_result.AddMember("event_time", millisec_since_epoch, allocator);
                     
                 rapidjson::Value bid_price_val(rapidjson::kObjectType);
                 bid_price_val.SetString(bid_price, strlen(bid_price), allocator);
@@ -160,25 +166,38 @@ std::string random_string(size_t length)
     return str;
 }
 
+std::vector<std::string> split(const std::string& s, char delimiter)
+{
+    std::vector<std::string> tokens;
+    std::string token;
+    std::istringstream tokenStream(s);
+    while (std::getline(tokenStream, token, delimiter))
+    {
+        tokens.push_back(token);
+    }
+    return tokens;
+}
+
 int main(int argc, char** argv)
 {        
+    auto millisec_since_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+
     CurlGlobalStateGuard handle_curl_state{};
     spdlog::info("Welcome to binancenativeapp!");
 
     cxxopts::Options options("binancenativeapp", "binancenativeapp");
     options.add_options()
-        ("d,debug", "Enable debugging", cxxopts::value<bool>()->default_value("false"))
         ("h,host", "Multicast group", cxxopts::value<std::string>()->default_value("tcp://192.168.1.45:1883"))
         ("p,port", "Multicast port", cxxopts::value<int>()->default_value("1883"))
-        ("k,keepalive", "Enable debugging", cxxopts::value<int>()->default_value("60"))
-        ("c,cert", "cert file", cxxopts::value<std::string>()->default_value("c:/project/client/binancenativeapp/cacert.pem"));
+        ("c,cert", "cert file", cxxopts::value<std::string>()->default_value("c:/project/client/binancenativeapp/cacert.pem"))
+        ("s,symbols", "Multicast group", cxxopts::value<std::string>()->default_value("DOGEUSDT"));
 
     auto result = options.parse(argc, argv);
-
-    bool debug = result["debug"].as<bool>();    
+    
     const char* host = result["host"].as<std::string>().c_str();
-    const char* cert = result["cert"].as<std::string>().c_str();
-    int keepalive = result["keepalive"].as<int>();
+    const char* cert = result["cert"].as<std::string>().c_str();    
+
+    const auto symbols = result["symbols"].as<std::string>();    
 
     //binance::restful rest{};
     //rest.get_file("https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/12h/BTCUSDT-12h-2021-04.zip");
@@ -208,14 +227,14 @@ int main(int argc, char** argv)
     binance::api api{ cert };
     //api.get_exchange_info();
 
-    ticker ticker_(client, api);
-    //ticker_.subscribe("DOGEUSDT");
-    //ticker_.subscribe("ETHUSDT");
-    ticker_.subscribe("BTCUSDT");
-
     kline kline_(client, api);
-    kline_.subscribe("BTCUSDT");    
-    
+    ticker ticker_(client, api);
+    for (auto& s : split(symbols, ';'))
+    {
+        ticker_.subscribe(s);
+        kline_.subscribe(s);    
+    }
+        
     auto start = std::chrono::steady_clock::now();
     while (1)
     {
