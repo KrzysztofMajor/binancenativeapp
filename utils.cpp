@@ -82,8 +82,9 @@ std::string utils::random_string(size_t length)
         return charset[rand() % max_index];
     };
     std::string str(length, 0);
-    std::generate_n(str.begin(), length, randchar);
-    return str;
+    std::generate_n(str.begin(), length, randchar);    
+    
+    return fmt::format("{}{}", str, getpid());
 }
 
 std::vector<std::string> utils::split(const std::string& s, char delimiter)
