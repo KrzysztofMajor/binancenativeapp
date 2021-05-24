@@ -28,15 +28,17 @@ moodycamel::ConcurrentQueue<std::string> q(1024);
 
 int mqtt_arrived_cb(void* context, char* topicName, int topicLen, MQTTClient_message* message)
 {
-    /*std::string topic(topicName);
+    std::string topic(topicName);
 
     std::string payload((char*)message->payload, message->payloadlen);    
-    q.enqueue(payload);*/
+    q.enqueue(payload);
     
     MQTTClient_freeMessage(&message);
     MQTTClient_free(topicName);
     return 1;
 }
+template<typename T>
+using handle = std::unique_ptr<T, std::function<void(T*)>>;
 
 int main(int argc, char** argv)
 {        
@@ -45,18 +47,19 @@ int main(int argc, char** argv)
     CurlGlobalStateGuard handle_curl_state{};    
     cxxopts::Options options("binancenativeapp", "binancenativeapp");
     options.add_options()
+        ("m,mode", "mode", cxxopts::value<std::string>()->default_value("feed"))
+        ("n,name", "name", cxxopts::value<std::string>()->default_value("default"))
         ("h,host", "Multicast group", cxxopts::value<std::string>()->default_value("tcp://192.168.1.45:1883"))        
-        ("m,mongo", "Mongo connection", cxxopts::value<std::string>()->default_value("mongodb://192.168.1.45:27017"))
-        ("c,cert", "cert file", cxxopts::value<std::string>()->default_value("c:/project/client/binancenativeapp/cacert.pem"))
+        ("d,database", "Mongo connection", cxxopts::value<std::string>()->default_value("mongodb://192.168.1.45:27017"))
+        ("c,cert", "cert file", cxxopts::value<std::string>()->default_value("c:/project/client/binancenativeapp/cacert.pem"))        
         ("s,symbols", "Multicast group", cxxopts::value<std::string>()->default_value("ethbtc;ltcbtc;bnbbtc"));
 
     auto result = options.parse(argc, argv);
     
+    auto mode = result["mode"].as<std::string>();
     const char* host = result["host"].as<std::string>().c_str();
-    const char* mongo = result["mongo"].as<std::string>().c_str();
+    const char* mongo = result["database"].as<std::string>().c_str();
     const char* cert = result["cert"].as<std::string>().c_str();    
-
-    const auto symbols = result["symbols"].as<std::string>();    
 
     //binance::restful rest{};
     //rest.get_file("https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/12h/BTCUSDT-12h-2021-04.zip");
@@ -81,12 +84,9 @@ int main(int argc, char** argv)
     {
         spdlog::error("Failed to connect, return code {}", rc);
         return EXIT_FAILURE;
-    }    
+    }        
 
-    binance::api api{ cert };
-    //api.get_exchange_info();
-
-    const char* topic = "dogeusdt/#";
+    const char* topic = "strategy_control/#";
     int qos = 1;
     rc = MQTTClient_subscribe(client, topic, qos);
     if (rc != MQTTCLIENT_SUCCESS)
@@ -95,27 +95,44 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
-    if (symbols.size())
-    {
-        auto pairs = crypto::utils::split(symbols, ';');
-                        
-        binance::ticker ticker_(client, api);
+    binance::api api{ cert };
+    //api.get_exchange_info();
+    
+    using MongoHandle = handle<mongoc_client_t>;// std::unique_ptr<mongoc_client_t, std::function<void(mongoc_client_t*)>>;
+    MongoHandle mongo_client{};
         
-        ticker_.subscribe(pairs, "bookTicker");
-        ticker_.subscribe(pairs, "kline_15m");
+    if (mode == "feed")
+    {        
+        const auto symbols = result["symbols"].as<std::string>();
+        if (symbols.size())
+        {
+            auto pairs = crypto::utils::split(symbols, ';');
+
+            binance::ticker ticker_(client, api);
+
+            ticker_.subscribe(pairs, "bookTicker");
+            ticker_.subscribe(pairs, "kline_15m");
+        }
     }
-
-    /*mongoc_init();
-
-    bson_error_t error;
-    mongoc_uri_t* uri = mongoc_uri_new_with_error(mongo, &error);
-    auto* mongo_client = mongoc_client_new_from_uri(uri);
-    if (!mongo_client)
+    else if (mode == "recorder")
     {
-        spdlog::error("Failed to connect to mongodb");
-        return EXIT_FAILURE;
+        mongoc_init();
+        
+        bson_error_t error;
+
+        using UriHandle = handle<mongoc_uri_t>;        
+        UriHandle uri(mongoc_uri_new_with_error(mongo, &error), mongoc_uri_destroy);
+        mongo_client = MongoHandle(mongoc_client_new_from_uri(uri.get()), mongoc_client_destroy);        
+
+        if (!mongo_client.get())
+        {
+            spdlog::error("Failed to connect to mongodb");
+            return EXIT_FAILURE;
+        }
+        mongoc_client_set_appname(mongo_client.get(), client_id.c_str());
     }
-    mongoc_client_set_appname(mongo_client, client_id.c_str());
+
+    /*
     auto database = mongoc_client_get_database(mongo_client, "db_name");
     auto collection = mongoc_client_get_collection(mongo_client, "db_name", "coll_name");
     auto insert = BCON_NEW("hello", BCON_UTF8("world"));
@@ -131,7 +148,7 @@ int main(int argc, char** argv)
     
     mongoc_collection_destroy(collection);
     mongoc_database_destroy(database);
-    mongoc_uri_destroy(uri);
+    
     mongoc_client_destroy(mongo_client);
     mongoc_cleanup();*/
 
@@ -151,8 +168,19 @@ int main(int argc, char** argv)
         });
         
     auto start = std::chrono::steady_clock::now();
-    while (1)    
-        api.event_loop();    
+    while (1)
+    {
+        api.event_loop();
+
+        auto current = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(current - start).count();
+        if (elapsed >= 1)
+        {
+            std::string data = "ping";
+            MQTTClient_publish(client, "strategy_control", data.length(), data.c_str(), 0, 0, nullptr);
+            start = current;
+        }
+    }
 
     MQTTClient_disconnect(client, 10000);
     MQTTClient_destroy(&client);
