@@ -71,6 +71,7 @@ bool utils::gzip_inflate(const std::string& compressedBytes, std::string& uncomp
 
 std::string utils::random_string(size_t length)
 {
+    srand(time(NULL));
     auto randchar = []() -> char
     {
         const char charset[] =

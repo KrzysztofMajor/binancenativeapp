@@ -13,7 +13,10 @@ public:
 
 void connectionLost(void* context, char* cause)
 {
-    spdlog::error(cause);
+    if (cause)
+        spdlog::error(cause);
+    else
+        spdlog::error("connectionLost");
 }
 
 void delivered(void* context, MQTTClient_deliveryToken dt)
@@ -39,9 +42,7 @@ int main(int argc, char** argv)
 {        
     auto millisec_since_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-    CurlGlobalStateGuard handle_curl_state{};
-    spdlog::info("Welcome to binancenativeapp!");
-
+    CurlGlobalStateGuard handle_curl_state{};    
     cxxopts::Options options("binancenativeapp", "binancenativeapp");
     options.add_options()
         ("h,host", "Multicast group", cxxopts::value<std::string>()->default_value("tcp://192.168.1.45:1883"))        
@@ -64,6 +65,7 @@ int main(int argc, char** argv)
     MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
     
     auto client_id = crypto::utils::random_string(5);
+    spdlog::info("Welcome to binancenativeapp: {}", client_id);
     MQTTClient_create(&client, host, client_id.c_str(),  MQTTCLIENT_PERSISTENCE_NONE, NULL);
     conn_opts.keepAliveInterval = 20;
     conn_opts.cleansession = 1;
