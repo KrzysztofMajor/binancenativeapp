@@ -109,9 +109,7 @@ int main(int argc, char** argv)
             auto pairs = crypto::utils::split(symbols, ';');
 
             binance::ticker ticker_(client, api);
-
-            ticker_.subscribe(pairs, "bookTicker");
-            ticker_.subscribe(pairs, "kline_15m");
+            ticker_.subscribe(pairs, "bookTicker");            
         }
     }
     else if (mode == "recorder")
