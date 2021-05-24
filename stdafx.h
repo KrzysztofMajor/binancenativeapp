@@ -6,6 +6,8 @@
 #include <vector>
 #include <string_view>
 
+#include <zlib.h>
+
 #include <cxxopts.hpp>
 #include <spdlog/spdlog.h>
 #include <fmt/format.h>
@@ -18,4 +20,9 @@
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
+
+#include <mongoc/mongoc.h>
+
+#include "concurrentqueue.h"
+#include "utils.h"
 

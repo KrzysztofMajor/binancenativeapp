@@ -56,6 +56,7 @@ int api::event_cb_impl(lws* wsi, enum lws_callback_reasons reason, void* user, v
 		subscriber_callbacks_.erase(wsi);
 
 		spdlog::warn("LWS_CALLBACK_CLOSED");
+
 		break;
 	}		
 	}
@@ -109,7 +110,7 @@ void api::event_loop()
 		}
 	}
 
-	lws_service(context_, 500);
+	lws_service(context_, -1);
 }
 
 bool api::get(const std::string& url, const callback& func)

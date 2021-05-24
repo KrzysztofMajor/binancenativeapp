@@ -2,6 +2,7 @@
 #include "binance.h"
 #include "restful.h"
 
+#include "ticker.h"
 
 class CurlGlobalStateGuard
 {
@@ -15,167 +16,23 @@ void connectionLost(void* context, char* cause)
     spdlog::error(cause);
 }
 
+void delivered(void* context, MQTTClient_deliveryToken dt)
+{    
+    
+}
+
+moodycamel::ConcurrentQueue<std::string> q(1024);
+
 int mqtt_arrived_cb(void* context, char* topicName, int topicLen, MQTTClient_message* message)
 {
+    /*std::string topic(topicName);
+
+    std::string payload((char*)message->payload, message->payloadlen);    
+    q.enqueue(payload);*/
+    
     MQTTClient_freeMessage(&message);
     MQTTClient_free(topicName);
     return 1;
-}
-
-class kline
-{
-public:
-    kline(MQTTClient& mosq, binance::api& api)
-        : mosq_(mosq), api_(api)
-    {
-
-    }
-
-    void subscribe(const std::string& symbol_name)
-    {
-        std::string lower_case = symbol_name;
-        std::transform(lower_case.begin(), lower_case.end(), lower_case.begin(), ::tolower);
-
-        auto channel = fmt::format("/ws/{}@kline_15m", lower_case);
-        auto topic = fmt::format("{}/kline_15m", lower_case);
-        api_.connect_endpoint(channel, [&, topic](std::string_view& value)
-        {
-            rapidjson::Document json_result{};
-            json_result.Parse(value.data());            
-            
-            rapidjson::Document mqtt_result{};
-            mqtt_result.SetObject();
-
-            auto& allocator = mqtt_result.GetAllocator();
-            
-            mqtt_result.AddMember("event_time", json_result["E"].GetUint64(), allocator);
-
-            auto& kline = json_result["k"];
-            mqtt_result.AddMember("start_time", kline["t"].GetUint64(), allocator);
-            mqtt_result.AddMember("end_time", kline["T"].GetUint64(), allocator);
-            
-            mqtt_result.AddMember("open_price", rapidjson::StringRef(kline["o"].GetString()), allocator);
-            mqtt_result.AddMember("close_price", rapidjson::StringRef(kline["c"].GetString()), allocator);
-            
-            mqtt_result.AddMember("high_price", rapidjson::StringRef(kline["h"].GetString()), allocator);
-            mqtt_result.AddMember("low_price", rapidjson::StringRef(kline["l"].GetString()), allocator);
-
-            rapidjson::StringBuffer buffer;
-            rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-            mqtt_result.Accept(writer);
-
-            const char* str = buffer.GetString();
-            MQTTClient_publish(mosq_, topic.c_str(), strlen(str), str, 0, 0, nullptr);
-        });
-    }
-private:
-    MQTTClient& mosq_;
-    binance::api& api_;
-};
-
-class ticker
-{
-public:
-    ticker(MQTTClient& mosq, binance::api& api)
-        : mosq_(mosq), api_(api), start_{ std::chrono::steady_clock::now() }
-    {
-
-    }
-
-    void subscribe(const std::string& symbol_name)
-    {        
-        std::string lower_case = symbol_name;
-        std::transform(lower_case.begin(), lower_case.end(), lower_case.begin(), ::tolower);
-        
-        auto channel = fmt::format("/ws/{}@bookTicker", lower_case);
-        auto topic = fmt::format("{}/top_of_book", lower_case);
-        api_.connect_endpoint(channel, [&, topic](std::string_view& value)
-            {                    
-                auto current = std::chrono::steady_clock::now();
-                auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(current - start_).count();
-                if (elapsed >= 1)
-                {
-                    spdlog::info("web socket data");
-                    start_ = current;
-                }
-
-                rapidjson::Document json_result{};
-                json_result.Parse(value.data());
-                auto u = json_result["u"].GetUint64();
-
-                auto bid_price = json_result["b"].GetString();
-                auto bid_qty = json_result["B"].GetString();
-                auto ask_price = json_result["a"].GetString();
-                auto ask_qty = json_result["A"].GetString();
-
-                rapidjson::Document mqtt_result{};
-                mqtt_result.SetObject();
-
-                auto& allocator = mqtt_result.GetAllocator();                    
-
-
-                auto millisec_since_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-
-                mqtt_result.AddMember("update_id", json_result["u"].GetUint64(), allocator);
-                mqtt_result.AddMember("event_time", millisec_since_epoch, allocator);
-                    
-                rapidjson::Value bid_price_val(rapidjson::kObjectType);
-                bid_price_val.SetString(bid_price, strlen(bid_price), allocator);
-                mqtt_result.AddMember("bid_price", bid_price_val, allocator);
-
-                rapidjson::Value bid_qty_val(rapidjson::kObjectType);
-                bid_qty_val.SetString(bid_qty, strlen(bid_qty), allocator);
-                mqtt_result.AddMember("bid_qty", bid_qty_val, allocator);
-
-                rapidjson::Value ask_price_val(rapidjson::kObjectType);
-                ask_price_val.SetString(ask_price, strlen(ask_price), allocator);
-                mqtt_result.AddMember("ask_price", ask_price_val, allocator);
-
-                rapidjson::Value ask_qty_val(rapidjson::kObjectType);
-                ask_qty_val.SetString(ask_qty, strlen(ask_qty), allocator);
-                mqtt_result.AddMember("ask_qty", ask_qty_val, allocator);
-
-                rapidjson::StringBuffer buffer;
-                rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-                mqtt_result.Accept(writer);
-
-                const char* str = buffer.GetString();                    
-                MQTTClient_publish(mosq_, topic.c_str(), strlen(str), str, 0, 0, nullptr);
-            });        
-    }
-private:
-    MQTTClient& mosq_;
-    binance::api& api_;
-
-    std::chrono::steady_clock::time_point start_;
-};
-
-std::string random_string(size_t length)
-{
-    auto randchar = []() -> char
-    {
-        const char charset[] =
-            "0123456789"
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            "abcdefghijklmnopqrstuvwxyz";
-        const size_t max_index = (sizeof(charset) - 1);
-        return charset[rand() % max_index];
-    };
-    std::string str(length, 0);
-    std::generate_n(str.begin(), length, randchar);
-    return str;
-}
-
-std::vector<std::string> split(const std::string& s, char delimiter)
-{
-    std::vector<std::string> tokens;
-    std::string token;
-    std::istringstream tokenStream(s);
-    while (std::getline(tokenStream, token, delimiter))
-    {
-        tokens.push_back(token);
-    }
-    return tokens;
 }
 
 int main(int argc, char** argv)
@@ -187,14 +44,15 @@ int main(int argc, char** argv)
 
     cxxopts::Options options("binancenativeapp", "binancenativeapp");
     options.add_options()
-        ("h,host", "Multicast group", cxxopts::value<std::string>()->default_value("tcp://192.168.1.45:1883"))
-        ("p,port", "Multicast port", cxxopts::value<int>()->default_value("1883"))
+        ("h,host", "Multicast group", cxxopts::value<std::string>()->default_value("tcp://192.168.1.45:1883"))        
+        ("m,mongo", "Mongo connection", cxxopts::value<std::string>()->default_value("mongodb://192.168.1.45:27017"))
         ("c,cert", "cert file", cxxopts::value<std::string>()->default_value("c:/project/client/binancenativeapp/cacert.pem"))
-        ("s,symbols", "Multicast group", cxxopts::value<std::string>()->default_value("DOGEUSDT"));
+        ("s,symbols", "Multicast group", cxxopts::value<std::string>()->default_value("ethbtc;ltcbtc;bnbbtc"));
 
     auto result = options.parse(argc, argv);
     
     const char* host = result["host"].as<std::string>().c_str();
+    const char* mongo = result["mongo"].as<std::string>().c_str();
     const char* cert = result["cert"].as<std::string>().c_str();    
 
     const auto symbols = result["symbols"].as<std::string>();    
@@ -205,49 +63,94 @@ int main(int argc, char** argv)
     MQTTClient client;
     MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
     
-    auto client_id = random_string(5);
+    auto client_id = crypto::utils::random_string(5);
     MQTTClient_create(&client, host, client_id.c_str(),  MQTTCLIENT_PERSISTENCE_NONE, NULL);
     conn_opts.keepAliveInterval = 20;
     conn_opts.cleansession = 1;
 
-    int rc;    
-    if ((rc = MQTTClient_connect(client, &conn_opts)) != MQTTCLIENT_SUCCESS)
-    {
-        spdlog::error("Failed to connect, return code {}", rc);
-        return EXIT_FAILURE;
-    }
-
-    rc = MQTTClient_setCallbacks(client, nullptr,  connectionLost, mqtt_arrived_cb, nullptr);
+    int rc = MQTTClient_setCallbacks(client, nullptr, connectionLost, mqtt_arrived_cb, delivered);
     if (rc != MQTTCLIENT_SUCCESS)
     {
         spdlog::error("Failed to set callback, return code {}", rc);
         return EXIT_FAILURE;
     }
 
+    if ((rc = MQTTClient_connect(client, &conn_opts)) != MQTTCLIENT_SUCCESS)
+    {
+        spdlog::error("Failed to connect, return code {}", rc);
+        return EXIT_FAILURE;
+    }    
+
     binance::api api{ cert };
     //api.get_exchange_info();
 
-    kline kline_(client, api);
-    ticker ticker_(client, api);
-    for (auto& s : split(symbols, ';'))
+    const char* topic = "dogeusdt/#";
+    int qos = 1;
+    rc = MQTTClient_subscribe(client, topic, qos);
+    if (rc != MQTTCLIENT_SUCCESS)
     {
-        ticker_.subscribe(s);
-        kline_.subscribe(s);    
+        spdlog::error("Failed to subscrib for '{}', return code {}", topic, rc);
+        return EXIT_FAILURE;
     }
+
+    if (symbols.size())
+    {
+        auto pairs = crypto::utils::split(symbols, ';');
+                        
+        binance::ticker ticker_(client, api);
+        
+        ticker_.subscribe(pairs, "bookTicker");
+        ticker_.subscribe(pairs, "kline_15m");
+    }
+
+    /*mongoc_init();
+
+    bson_error_t error;
+    mongoc_uri_t* uri = mongoc_uri_new_with_error(mongo, &error);
+    auto* mongo_client = mongoc_client_new_from_uri(uri);
+    if (!mongo_client)
+    {
+        spdlog::error("Failed to connect to mongodb");
+        return EXIT_FAILURE;
+    }
+    mongoc_client_set_appname(mongo_client, client_id.c_str());
+    auto database = mongoc_client_get_database(mongo_client, "db_name");
+    auto collection = mongoc_client_get_collection(mongo_client, "db_name", "coll_name");
+    auto insert = BCON_NEW("hello", BCON_UTF8("world"));
+    if (!mongoc_collection_insert_one(collection, insert, NULL, NULL, &error)) 
+    {
+        fprintf(stderr, "%s\n", error.message);
+    }
+    bson_destroy(insert);
+    //bson_destroy(&reply);
+    //bson_destroy(command);
+    //bson_free(str);
+
+    
+    mongoc_collection_destroy(collection);
+    mongoc_database_destroy(database);
+    mongoc_uri_destroy(uri);
+    mongoc_client_destroy(mongo_client);
+    mongoc_cleanup();*/
+
+    std::thread consumer([&]() 
+        {
+            while (true)
+            {
+                std::string payload;
+                if (q.try_dequeue(payload))
+                {
+                    rapidjson::Document json_result{};
+                    json_result.Parse(payload.data());
+                    
+                    spdlog::info(payload);
+                }
+            }
+        });
         
     auto start = std::chrono::steady_clock::now();
-    while (1)
-    {
-        auto current = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(current - start).count();
-        if (elapsed >= 1)
-        {
-            spdlog::info("event_loop");
-            start = current;
-        }
-
-        api.event_loop();               
-    }
+    while (1)    
+        api.event_loop();    
 
     MQTTClient_disconnect(client, 10000);
     MQTTClient_destroy(&client);

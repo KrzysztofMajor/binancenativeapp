@@ -12,8 +12,8 @@ static size_t curl_cb(void* content, size_t size, size_t nmemb, std::string* buf
 size_t write_to_file(void* contents, size_t size, size_t nmemb, void* userp)
 {
 	size_t realsize = size * nmemb;
-	auto file = reinterpret_cast<std::ofstream*>(userp);
-	file->write(reinterpret_cast<const char*>(contents), realsize);
+	auto buffer = reinterpret_cast<std::ostringstream*>(userp);
+    buffer->write(reinterpret_cast<const char*>(contents), realsize);
 	return realsize;
 }
 
@@ -90,9 +90,9 @@ int wait_if_needed(CURLM* multi_handle, timeval& timeout)
     /* On success the value of maxfd is guaranteed to be >= -1. We call
            sleep for 100ms, which is the minimum suggested value in the
            curl_multi_fdset() doc. */
-    /*if (maxfd == -1) {
+    if (maxfd == -1) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }*/
+    }
 
     int rc = maxfd != -1 ? select(maxfd + 1, &fdread, &fdwrite, &fdexcep, &timeout) : 0;
     return rc;
@@ -120,7 +120,7 @@ void multi_loop(CURLM* multi_handle)
     }
 }
 
-void restful::get_file(const std::string& url)
+std::ostringstream restful::get_file(const std::string& url)
 {
 	using MultiHandle = std::unique_ptr<CURLM, std::function<void(CURLM*)>>;
 	using EasyHandle = std::unique_ptr<CURL, std::function<void(CURL*)>>;
@@ -131,14 +131,16 @@ void restful::get_file(const std::string& url)
 	curl_easy_setopt(handle.get(), CURLOPT_URL, url.c_str());	
 	curl_easy_setopt(handle.get(), CURLOPT_SSL_VERIFYPEER, 0L);
 	curl_easy_setopt(handle.get(), CURLOPT_SSL_VERIFYHOST, 0L);
-
-	std::ofstream file_stream("downloaded_data.txt", std::ios::binary);
+	
+    std::ostringstream buffer{};
 	curl_easy_setopt(handle.get(), CURLOPT_WRITEFUNCTION, write_to_file);
-	curl_easy_setopt(handle.get(), CURLOPT_WRITEDATA, reinterpret_cast<void*>(&file_stream));
+	curl_easy_setopt(handle.get(), CURLOPT_WRITEDATA, reinterpret_cast<void*>(&buffer));
 		
 	curl_multi_add_handle(multi_handle.get(), handle.get());
 
     multi_loop(multi_handle.get());
 
 	curl_multi_remove_handle(multi_handle.get(), handle.get());
+
+    return buffer;
 }
