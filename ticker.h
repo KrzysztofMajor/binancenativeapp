@@ -22,12 +22,17 @@ namespace binance
 
             channel = fmt::format("/stream?streams={}", channel);
             api_.connect_endpoint(channel, [&](std::string_view& value)
-                {
+                {                    
                     rapidjson::Document json_result{};
                     json_result.Parse(value.data());
                     
                     auto streamName = std::string(json_result["stream"].GetString());
-                    auto& payload = json_result["data"];                    
+                    auto& payload = json_result["data"];                                        
+                    
+                    auto current = std::chrono::steady_clock::now();
+                    unsigned __int64 epoch = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+                    auto& allocator = json_result.GetAllocator();
+                    payload.AddMember("event_time", epoch, allocator);
 
                     std::replace(std::begin(streamName), std::end(streamName), '@', '/');
                     rapidjson::StringBuffer buffer;
