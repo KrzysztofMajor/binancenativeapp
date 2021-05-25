@@ -30,7 +30,7 @@ namespace binance
                     auto& payload = json_result["data"];                                        
                     
                     auto current = std::chrono::steady_clock::now();
-                    unsigned __int64 epoch = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+                    auto epoch = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
                     auto& allocator = json_result.GetAllocator();
                     payload.AddMember("event_time", epoch, allocator);
 

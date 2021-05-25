@@ -116,7 +116,7 @@ int main(int argc, char** argv)
         auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(current - start).count();
         if (elapsed >= 1)
         {
-            unsigned __int64 epoch = std::chrono::duration_cast<std::chrono::milliseconds>(current.time_since_epoch()).count();
+            auto epoch = std::chrono::duration_cast<std::chrono::milliseconds>(current.time_since_epoch()).count();
             std::string data = fmt::format("{}", epoch);
             MQTTClient_publish(client, ping_topic.c_str(), data.length(), data.c_str(), 0, 0, nullptr);
             start = current;
