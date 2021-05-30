@@ -26,6 +26,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${MOSQUITTO_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} PRIVATE ZLIB::ZLIB)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${LibArchive_LIBRARIES})
 target_include_directories(${PROJECT_NAME} PRIVATE ${MONGOC_INCLUDE_DIRS})
+
+message(${MONGOC_LIBRARIES})
+
 target_link_libraries(${PROJECT_NAME} PRIVATE ${MONGOC_LIBRARIES})
 target_compile_definitions(${PROJECT_NAME} PRIVATE ${MONGOC_DEFINITIONS})
 
