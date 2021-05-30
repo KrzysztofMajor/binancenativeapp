@@ -2,71 +2,48 @@
 #include "utils.h"
 
 #include <numeric>
+#include <archive.h>
+#include <archive_entry.h>
+
 
 using namespace crypto;
 
-bool utils::gzip_inflate(const std::string& compressedBytes, std::string& uncompressedBytes)
+int copy_data(archive* archive, buffer_struct& uncompressedBytes)
 {
-    if (compressedBytes.size() == 0) 
+    size_t size;
+    const void* buff;
+    int64_t offset;
+    int r;
+    for (;;)
     {
-        uncompressedBytes = compressedBytes;
-        return true;
+        r = archive_read_data_block(archive, &buff, &size, &offset);
+        if (r == ARCHIVE_EOF)        
+            return (ARCHIVE_OK);        
+        else if (r < ARCHIVE_OK)
+            return (r);        
+
+        uncompressedBytes.append((char*)buff, size);
+    }
+}
+
+bool utils::gzip_inflate(const buffer_struct& compressedBytes, buffer_struct& uncompressedBytes)
+{
+    auto archive = archive_read_new();
+    archive_read_support_filter_all(archive);
+    archive_read_support_format_all(archive);
+    auto reading_result = archive_read_open_memory(archive, compressedBytes.data, compressedBytes.size_);
+
+    archive_entry* entry;
+    auto res  = archive_read_next_header(archive, &entry);
+
+    while (res == ARCHIVE_OK) 
+    {        
+        res = copy_data(archive, uncompressedBytes);
+        res = archive_read_next_header(archive, &(entry));        
     }
 
-    uncompressedBytes.clear();
-
-    unsigned full_length = compressedBytes.size();
-    unsigned half_length = compressedBytes.size() / 2;
-
-    unsigned uncompLength = full_length;
-    char* uncomp = (char*)calloc(sizeof(char), uncompLength);
-
-    z_stream strm;
-    strm.next_in = (Bytef*)compressedBytes.c_str();
-    strm.avail_in = compressedBytes.size();
-    strm.total_out = 0;
-    strm.zalloc = Z_NULL;
-    strm.zfree = Z_NULL;
-
-    bool done = false;
-
-    if (inflateInit2(&strm, (16 + MAX_WBITS)) != Z_OK) {
-        free(uncomp);
-        return false;
-    }
-
-    while (!done) {
-        // If our output buffer is too small  
-        if (strm.total_out >= uncompLength) {
-            // Increase size of output buffer  
-            char* uncomp2 = (char*)calloc(sizeof(char), uncompLength + half_length);
-            memcpy(uncomp2, uncomp, uncompLength);
-            uncompLength += half_length;
-            free(uncomp);
-            uncomp = uncomp2;
-        }
-
-        strm.next_out = (Bytef*)(uncomp + strm.total_out);
-        strm.avail_out = uncompLength - strm.total_out;
-
-        // Inflate another chunk.  
-        int err = inflate(&strm, Z_SYNC_FLUSH);
-        if (err == Z_STREAM_END) done = true;
-        else if (err != Z_OK) {
-            break;
-        }
-    }
-
-    if (inflateEnd(&strm) != Z_OK) {
-        free(uncomp);
-        return false;
-    }
-
-    for (size_t i = 0; i < strm.total_out; ++i)
-        uncompressedBytes += uncomp[i];
-
-    free(uncomp);
-    return true;
+    reading_result = archive_read_free(archive);    
+    return reading_result == ARCHIVE_OK;
 }
 
 std::string utils::random_string(size_t length)

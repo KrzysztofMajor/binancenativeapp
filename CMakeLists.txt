@@ -1,8 +1,6 @@
 project(binancenativeapp)
 cmake_minimum_required(VERSION 3.16)
 
-message("Hello from latest cmake")
-
 set(CMAKE_CXX_STANDARD 17)
 
 find_package(eclipse-paho-mqtt-c CONFIG REQUIRED)
@@ -13,6 +11,7 @@ find_package(libwebsockets CONFIG REQUIRED)
 find_package(RapidJSON CONFIG REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(libmongoc-1.0 CONFIG REQUIRED)
+find_package(libarchive REQUIRED)
 
 file(GLOB SOURCE_CPP *.cpp)    
 file(GLOB SOURCE_HEADER *.h)    
@@ -25,6 +24,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE cxxopts::cxxopts)
 target_link_libraries(${PROJECT_NAME} PRIVATE websockets)    
 target_link_libraries(${PROJECT_NAME} PRIVATE ${MOSQUITTO_LIBRARIES})    
 target_link_libraries(${PROJECT_NAME} PRIVATE ZLIB::ZLIB)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${LibArchive_LIBRARIES})
 target_include_directories(${PROJECT_NAME} PRIVATE ${MONGOC_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${MONGOC_LIBRARIES})
 target_compile_definitions(${PROJECT_NAME} PRIVATE ${MONGOC_DEFINITIONS})
@@ -37,3 +37,4 @@ endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${MOSQUITTO_INCLUDE_DIRS})
 target_include_directories(${PROJECT_NAME} PRIVATE ${RAPIDJSON_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME} PRIVATE ${LibArchive_INCLUDE_DIRS})

@@ -116,13 +116,13 @@ void api::event_loop()
 bool api::get(const std::string& url, const callback& func)
 {	
 	std::string str_result;
-	if (!rest.get(url, str_result))
+	std::string header_result;
+	if (!rest.get(url, str_result, header_result))
 	{
 		spdlog::error("api::get: unable to get '{}'", url);
 		return false;
 	}
 		
-
 	auto begin = str_result.c_str();
 	auto end = begin + str_result.length();
 	

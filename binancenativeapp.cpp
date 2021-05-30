@@ -93,7 +93,7 @@ int main(int argc, char** argv)
     }
 
     binance::api api{ cert };
-    //api.get_exchange_info();
+    //api.get_exchange_info();   
         
     const auto symbols = result["symbols"].as<std::string>();
     if (symbols.size())

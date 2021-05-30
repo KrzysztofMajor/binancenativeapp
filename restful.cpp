@@ -3,18 +3,30 @@
 
 using namespace binance;
 
+
 static size_t curl_cb(void* content, size_t size, size_t nmemb, std::string* buffer)
 {
 	buffer->append((char*)content, size * nmemb);
 	return size * nmemb;
 }
 
-size_t write_to_file(void* contents, size_t size, size_t nmemb, void* userp)
+size_t write_to_file(void* contents, size_t size, size_t nmemb, FILE* userp)
 {
-	size_t realsize = size * nmemb;
-	auto buffer = reinterpret_cast<std::ostringstream*>(userp);
-    buffer->write(reinterpret_cast<const char*>(contents), realsize);
-	return realsize;
+    size_t written = fwrite(contents, size, nmemb, userp);
+	/*size_t realsize = size * nmemb;
+	auto buffer = reinterpret_cast<crypto::buffer_struct*>(userp);
+    buffer->append(reinterpret_cast<const char*>(contents), realsize);
+	return realsize;*/
+    return written;
+}
+
+size_t write_to_memory(void* contents, size_t size, size_t nmemb, void* userp)
+{    
+    size_t realsize = size * nmemb;
+    auto* mem = (crypto::buffer_struct*)userp;
+    mem->append((char*)contents, realsize);
+
+    return realsize;
 }
 
 restful::restful()
@@ -27,19 +39,20 @@ restful::~restful()
 	curl_easy_cleanup(curl);	
 }
 
-bool restful::get(const std::string& url, std::string& result)
+bool restful::get(const std::string& url, std::string& result, std::string& header_result)
 {
 	std::string binanceUrl{ binance_url };
 	binanceUrl += url;
 
-	return api(binanceUrl, result);
+	return api(binanceUrl, result, header_result);
 }
 
-bool restful::api(const std::string& url, std::string& str_result)
-{
+bool restful::api(const std::string& url, std::string& str_result, std::string& header_result)
+{    
 	curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_cb);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &str_result);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &header_result);
 	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, false);
 	curl_easy_setopt(curl, CURLOPT_ENCODING, "gzip");
 
@@ -120,7 +133,7 @@ void multi_loop(CURLM* multi_handle)
     }
 }
 
-std::ostringstream restful::get_file(const std::string& url)
+crypto::buffer_struct restful::get_file(const std::string& url)
 {
 	using MultiHandle = std::unique_ptr<CURLM, std::function<void(CURLM*)>>;
 	using EasyHandle = std::unique_ptr<CURL, std::function<void(CURL*)>>;
@@ -131,16 +144,18 @@ std::ostringstream restful::get_file(const std::string& url)
 	curl_easy_setopt(handle.get(), CURLOPT_URL, url.c_str());	
 	curl_easy_setopt(handle.get(), CURLOPT_SSL_VERIFYPEER, 0L);
 	curl_easy_setopt(handle.get(), CURLOPT_SSL_VERIFYHOST, 0L);
+    //curl_easy_setopt(handle.get(), CURLOPT_USERAGENT, "libcurl-agent/1.0");
+	    
+    crypto::buffer_struct  bufferPtr{};    
 	
-    std::ostringstream buffer{};
-	curl_easy_setopt(handle.get(), CURLOPT_WRITEFUNCTION, write_to_file);
-	curl_easy_setopt(handle.get(), CURLOPT_WRITEDATA, reinterpret_cast<void*>(&buffer));
-		
+    curl_easy_setopt(handle.get(), CURLOPT_WRITEDATA, &bufferPtr);
+    curl_easy_setopt(handle.get(), CURLOPT_WRITEFUNCTION, write_to_memory);
+    curl_easy_setopt(handle.get(), CURLOPT_SSL_VERIFYPEER, false);
+    //curl_easy_setopt(handle.get(), CURLOPT_ENCODING, "gzip");
+		    
 	curl_multi_add_handle(multi_handle.get(), handle.get());
-
     multi_loop(multi_handle.get());
+	curl_multi_remove_handle(multi_handle.get(), handle.get());    
 
-	curl_multi_remove_handle(multi_handle.get(), handle.get());
-
-    return buffer;
+    return bufferPtr;
 }
